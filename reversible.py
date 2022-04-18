@@ -1,58 +1,7 @@
 #!/usr/bin/env python3
 
 from enum import Enum, auto
-
-def test_old():
-    fst = 2 * [3 * [None]]
-    for col in range(2):
-        for row in range(3):
-            fst[col][row] = RE()
-
-    con = {}
-    con[(0, 2, REDir.e)] = (0, 0, REDir.n)
-    con[(0, 2, REDir.w)] = (0, 0, REDir.n)
-    con[(0, 2, REDir.s)] = (0, 2, REDir.s)
-    con[(0, 2, REDir.n)] = (0, 1, REDir.s)
-
-    con[(1, 2, REDir.e)] = (1, 0, REDir.n)
-    con[(1, 2, REDir.w)] = (1, 0, REDir.n)
-    con[(1, 2, REDir.s)] = (1, 2, REDir.s)
-    con[(1, 2, REDir.n)] = (1, 1, REDir.s)
-
-    con[(0, 1, REDir.e)] = (1, 1, REDir.w)
-    con[(0, 1, REDir.s)] = (0, 2, REDir.n)
-    con[(0, 1, REDir.w)] = (0, 0, REDir.e)
-    con[(0, 1, REDir.n)] = (0, 0, REDir.s)
-
-    con[(1, 1, REDir.e)] = 'y'
-    con[(1, 1, REDir.s)] = (1, 2, REDir.n)
-    con[(1, 1, REDir.n)] = (1, 0, REDir.s)
-
-    con[(0, 0, REDir.e)] = (1, 0, REDir.w)
-    con[(0, 0, REDir.s)] = (0, 1, REDir.n)
-    con[(0, 0, REDir.w)] = (1, 0, REDir.e)
-
-    con[(1, 0, REDir.e)] = 'x'
-    con[(1, 0, REDir.s)] = (1, 1, REDir.n)
-    con[(1, 0, REDir.w)] = (0, 1, REDir.e)
-
-    new_msg = {}
-
-    for key, value in con.items():
-        new_msg[key] = value
-        new_msg[value] = key
-
-    new_msg[(0, 0, REDir.w)] = 'a'
-    new_msg[(0, 1, REDir.w)] = 'b'
-
-    msg = (1, 1, REDir.e)
-
-    while msg not in ('a', 'b', 'x', 'y'):
-        col, row, in_dir = msg
-        out_dir = fst[col][row].re_input(in_dir)
-        msg = new_msg[(col, row, out_dir)]
-
-    print(msg)
+from collections import defaultdict
 
 class REState(Enum):
     H = auto()
@@ -132,9 +81,116 @@ class DFA:
 
 class RFA:
     def __init__(self, DFA):
-        num_inputs = len(DFA.Sigma)
-        self.states = {}
+        n = len(DFA.Sigma)
+        m = len(DFA.Q)
+        self.inputs = list(DFA.Sigma)
+        self.outputs = list(DFA.Gamma)
+        self.states = list(DFA.Q)
+        # self.REs = m * [(n + 1) * [None]]
+        # for col in range(m):
+        #     for row in range(n + 1):
+        #         self.REs[col][row] = RE()
+        # Put the machine in the initial state
+        self.REs = {}
+        q_0_i = self.states.index(DFA.q_0)
+        # self.REs[q_0_i][n].state = REState.V
+
+        self.fwd = defaultdict()
+        for q in DFA.Q:
+            qi = self.states.index(q)
+            # Initialize the "state-keeping" REs, by convention
+            # numbered `n`.
+            self.fwd[(qi, n, REDir.n)] = (qi, n-1, REDir.s)
+            self.fwd[(qi, n, REDir.s)] = (qi, n, REDir.s)
+            # self.fwd[(qi, n, REDir.e)] = (qi, 0, REDir.s)
+            self.fwd[(qi, n, REDir.w)] = (qi, 0, REDir.n)
+
+
+        # Initialize the array of REs that forms the "brains" of the
+        # RFA, state column by state column
+        for q in DFA.Q:
+            qi = self.states.index(q)
+            init_state = REState.V if q == DFA.q_0 else REState.H
+            RE_n_conn = {
+                'n': ((qi, n-1), REDir.s),
+                'e': ((qi, 0), REDir.n),
+                's': ((qi, n), REDir.s),
+                'w': ((qi, 0), REDir.n)
+            }
+            # This is the "state-keeping" RE, corresponding to the
+            # "bottom" RE in the slides from class; it corresponds to
+            # no inputs or outputs, it just maintains state
+            self.REs[(qi, n)] = RFAE(RE(init_state), REConn(**RE_n_conn))
+            # These are the "input" and "output" REs for each state
+            RE_0_conn = {
+                'n': ((qi, n), REDir.e),
+                's': ((qi, 1), REDir.n)
+            }
+            self.REs[(qi, 0)] = RFAE(RE(), REConn(**RE_0_conn))
+            for i in range(1, n):
+                RE_conn = {
+                    'n': ((qi, i-1), REDir.s),
+                    's': ((qi, i+1), REDir.n)
+                }
+                self.REs[(qi, i)] = RFAE(RE(), REConn(**RE_conn))
+        # Now, make the connections "between columns" by connecting
+        # corresponding REs between consecutive columns
+        for qi in range(1, m):
+            for i in range(n - 1):
+                self.REs[(qi - 1, i)].REConn.e = \
+                    ((qi, i), REDir.w)
+        # Now, make connections corresponding to the input DFA's state
+        # transition function, delta
+        for input_pair, output_pair in DFA.delta.items():
+            print(input_pair, output_pair)
+            # Extract relevant information
+            state_curr, input_char = input_pair
+            curr_index = self.states.index(state_curr)
+            input_index = self.inputs.index(input_char)
+            state_next, output_char = output_pair
+            next_index = self.states.index(state_next)
+            output_index = self.outputs.index(output_char)
+            # Make the forward connections
+            self.REs[(curr_index, input_index)].REConn.w = \
+                ((next_index, output_index), REDir.e)
+        # This completes initialization of the forward-capable RFA
         return
+
+    def io(self, target, message):
+        out_dir = self.REs[target].RE.re_input(message)
+        if out_dir == REDir.n:
+            return self.REs[target].REConn.n
+        elif out_dir == REDir.e:
+            return self.REs[target].REConn.e
+        elif out_dir == REDir.s:
+            return self.REs[target].REConn.s
+        elif out_dir == REDir.w:
+            return self.REs[target].REConn.w
+
+    def get_state(self):
+        n = len(self.inputs)
+        for i, q in enumerate(self.states):
+            if self.REs[(i, n)].RE.state == REState.V:
+                return q
+
+    def step_forward(self, input_char: str):
+        input_index = self.inputs.index(input_char)
+        input_state = 0
+        input_target = (input_state, input_index)
+        # All inputs come in from the West ports of the first column
+        result = self.io(input_target, REDir.w)
+        while result:
+            target, message = result
+            result = self.io(target, message)
+
+        return self.outputs[target[1]]
+
+    def run_forward(self, input_string: str):
+        output_string = ''
+        for char in input_string:
+            output_char = self.step_forward(char)
+            if output_char: output_string += output_char
+        return output_string
 
 def main():
     Q = {'1', '2'}
@@ -151,6 +207,9 @@ def main():
     dfa = DFA(Q, Sigma, delta, q_0, F, Gamma, True)
 
     print(dfa.run_forward('aaaabaaa'))
+
+    rfa = RFA(dfa)
+    print(rfa.run_forward('aaaabaaa'))
 
     return
 

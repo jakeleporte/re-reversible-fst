@@ -6,7 +6,7 @@
 This repository contains a simple Mealy machine FST simulator, as well
 as a reversible FST simulator which builds an FST out of [Rotary
 Elements
-(REs)](https://link.springer.com/content/pdf/10.1007/978-4-431-56606-9_2.pdf).
+(REs)](https://link.springer.com/chapter/10.1007/978-4-431-56606-9_2).
 The reversible FST simulator takes a general Mealy machine model as
 input, determines if it has imprecise transitions, and builds a
 reversible model of the machine based on REs.  The resulting model can
@@ -17,5 +17,7 @@ from the relevant REs.
 
 ## References
 
-- [Reversibility for Nanoscale
-Systems](https://curate.nd.edu/show/70795714k97), Dr. Sarah Elizabeth Frost-Murphy
+- Frost-Murphy, [Reversibility for Nanoscale
+Systems](https://onesearch.library.nd.edu/permalink/f/1phik6l/ndu_aleph002640081)
+
+- Morita, [Theory of Reversible Computing](https://doi.org/10.1007/978-4-431-56606-9)

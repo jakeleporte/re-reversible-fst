@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 from enum import Enum, auto
-from collections import defaultdict
 from sys import stdout
 from time import sleep
+import os
 
 class REState(Enum):
     H = auto()
@@ -203,11 +203,12 @@ class RFA:
         while message not in self.outputs:
             col, row, dir_in = message
             dir_out = self.REs[col][row].re_input(dir_in)
+            trace_out_msg = (col, row, dir_out)
+            message = self.fwd[(col, row, dir_out)]
             if trace:
                 print(message, file=file)
-                self.print_res(file=file)
+                self.print_res(file=file, output_msg=trace_out_msg, input_msg=message)
                 sleep(pause)
-            message = self.fwd[(col, row, dir_out)]
         return message
 
     def step_backward(self, output_char: str, trace=False, pause=0, file=stdout):
@@ -249,62 +250,60 @@ class RFA:
         return accepted, output_string
 
     def print_res(self, file=stdout, input_msg=None, output_msg=None):
-        separators = self.m * ["+---+"]
-        separator = "\t".join(separators)
-        if input_msg:
-            in_col, in_row, in_dir = input_msg
-        if output_msg:
-            out_col, out_row, out_dir = output_msg
-        for row in range(self.n + 1):
-            in_headers = self.m * ["     "]
-            if input_msg and in_dir == REDir.n and row == in_row:
-                in_headers[in_col] = "  ↓  "
-            in_header = print("\t".join(in_headers), file=file)
-            print(separator, file=file)
-            state = self.REs[0][row].state
-            for col in range(0, self.m):
+        basic_box = ["       ",
+                     " +---+ ",
+                     " |   | ",
+                     " +---+ ",
+                     "       "]
+        box_rows = len(basic_box)
+        box_cols = len(basic_box[0])
+        box_mid_row = 2
+        boxes = [[basic_box.copy() for row in range(self.n + 1)] for col in range(self.m)]
+        # Add the state indicators
+        for col in range(self.m):
+            for row in range(self.n + 1):
                 state = self.REs[col][row].state
                 if state == REState.V:
-                    print("| | |", end="", file=file)
-                    print("\t", end="", file=file)
+                    state_char = "|"
                 else:
-                    print("| - |", end="", file=file)
-                    print("\t", end="", file=file)
-            print()
-            print(separator, file=file)
+                    state_char = "-"
+                if input_msg and type(input_msg) != str:
+                    in_col, in_row, in_dir = input_msg
+                    if col == in_col and row == in_row:
+                        if in_dir == REDir.n:
+                            boxes[col][row][0] = boxes[col][row][0][0:2] + "↓" \
+                                + boxes[col][row][0][3:7]
+                        elif in_dir == REDir.e:
+                            boxes[col][row][box_mid_row-1] = \
+                                boxes[col][row][box_mid_row-1][0:6] + "←"
+                        elif in_dir == REDir.s:
+                            boxes[col][row][4] = boxes[col][row][4][0:4] + "↑" \
+                                + boxes[col][row][4][5:7]
+                        elif in_dir == REDir.w:
+                            boxes[col][row][box_mid_row+1] = "→" \
+                                + boxes[col][row][box_mid_row+1][1:7]
+                if output_msg and type(input_msg) != str:
+                    out_col, out_row, out_dir = output_msg
+                    if col == out_col and row == out_row:
+                        if out_dir == REDir.n:
+                            boxes[col][row][0] = boxes[col][row][0][0:4] + "↑" \
+                                + boxes[col][row][0][5:7]
+                        elif out_dir == REDir.e:
+                            boxes[col][row][box_mid_row+1] = \
+                                boxes[col][row][box_mid_row+1][0:6] + "→"
+                        elif out_dir == REDir.s:
+                            boxes[col][row][4] = boxes[col][row][4][0:2] + "↓" \
+                                + boxes[col][row][4][3:7]
+                        elif out_dir == REDir.w:
+                            boxes[col][row][box_mid_row-1] = "←" \
+                                + boxes[col][row][box_mid_row-1][1:7]
+                boxes[col][row][box_mid_row] = boxes[col][row][box_mid_row][0:3] + \
+                    state_char + boxes[col][row][box_mid_row][4:7]
 
-def main():
-    fst_dict = {
-        'Q': {'1', '2'},
-        'Sigma': {'a', 'b'},
-        'delta': {
-            ('1', 'a'): ('2', 'x'),
-            ('1', 'b'): ('1', 'x'),
-            ('2', 'a'): ('1', 'y'),
-            ('2', 'b'): ('2', 'y')
-        },
-        'q_0': '1',
-        'F': {'1'},
-        'Gamma': {'x', 'y'}
-    }
-
-    fst = FST(**fst_dict)
-
-    input_str = 'aba'
-    _, fst_output = fst.run_forward(input_str)
-
-    rfa = RFA(fst)
-    _, rfa_output = rfa.run(input_str, trace=True, pause=1)
-
-    print(rfa_output, fst_output)
-    print(rfa_output == fst_output)
-
-    # Reverse output must be fed in reversed
-    rfa_reverse_input = rfa_output[::-1]
-    _, rfa_reverse_output = rfa.run(rfa_reverse_input, reverse=True)
-    print(rfa_reverse_output, input_str)
-    print(rfa_reverse_output == input_str)
-
-    return
-
-main()
+        # Print the boxes
+        os.system('clear')
+        for row in range(self.n + 1):
+            for box_row in range(box_rows):
+                for col in range(self.m):
+                    print(boxes[col][row][box_row], file=file, end="")
+                print(file=file)

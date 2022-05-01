@@ -5,6 +5,17 @@ from sys import stdout
 from time import sleep
 import os
 
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
 class REState(Enum):
     H = auto()
     V = auto()
@@ -245,9 +256,10 @@ class RFA:
             output_string += output_char
         if reverse:
             accepted = self.get_state() == self.q_0
+            return accepted, output_string[::-1]
         else:
             accepted = self.get_state() in self.F
-        return accepted, output_string
+            return accepted, output_string
 
     def print_res(self, file=stdout, input_msg=None, output_msg=None):
         basic_box = ["       ",
@@ -255,6 +267,7 @@ class RFA:
                      " |   | ",
                      " +---+ ",
                      "       "]
+        red_box = [bcolors.WARNING + line + bcolors.ENDC for line in basic_box]
         box_rows = len(basic_box)
         box_cols = len(basic_box[0])
         box_mid_row = 2
@@ -267,7 +280,9 @@ class RFA:
                     state_char = "|"
                 else:
                     state_char = "-"
-                if input_msg and type(input_msg) != str:
+                boxes[col][row][box_mid_row] = boxes[col][row][box_mid_row][0:3] + \
+                    state_char + boxes[col][row][box_mid_row][4:7]
+                if input_msg and type(input_msg) == tuple:
                     in_col, in_row, in_dir = input_msg
                     if col == in_col and row == in_row:
                         if in_dir == REDir.n:
@@ -282,7 +297,7 @@ class RFA:
                         elif in_dir == REDir.w:
                             boxes[col][row][box_mid_row+1] = "→" \
                                 + boxes[col][row][box_mid_row+1][1:7]
-                if output_msg and type(input_msg) != str:
+                if output_msg and type(output_msg) == tuple:
                     out_col, out_row, out_dir = output_msg
                     if col == out_col and row == out_row:
                         if out_dir == REDir.n:
@@ -297,8 +312,8 @@ class RFA:
                         elif out_dir == REDir.w:
                             boxes[col][row][box_mid_row-1] = "←" \
                                 + boxes[col][row][box_mid_row-1][1:7]
-                boxes[col][row][box_mid_row] = boxes[col][row][box_mid_row][0:3] + \
-                    state_char + boxes[col][row][box_mid_row][4:7]
+                        boxes[col][row] = [bcolors.WARNING + line + bcolors.ENDC
+                                           for line in boxes[col][row]]
 
         # Print the boxes
         os.system('clear')
